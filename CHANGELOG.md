@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.0](https://github.com/g0ldyy/comet/compare/v1.37.0...v1.38.0) (2024-11-16)
+
+
+### Features
+
+* add search term ([fdb62ab](https://github.com/g0ldyy/comet/commit/fdb62ab60adb046e92279f7f5c2578d9b54fd8bc))
+
 ## [1.37.0](https://github.com/g0ldyy/comet/compare/v1.36.1...v1.37.0) (2024-11-15)
 
 
