@@ -1,11 +1,11 @@
 import base64
 import hashlib
+import json
 import re
 import aiohttp
 import bencodepy
 import PTT
 import asyncio
-import orjson
 
 from RTN import parse, title_match
 from curl_cffi import requests
@@ -32,7 +32,7 @@ languages_emojis = {
     "pa": "🇵🇰",  # Punjabi
     "mr": "🇮🇳",  # Marathi
     "gu": "🇮🇳",  # Gujarati
-    "ta": "🇮🇳",  # Tamil
+    "ta": "🇮🇳",  # Tamil<
     "te": "🇮🇳",  # Telugu
     "kn": "🇮🇳",  # Kannada
     "ml": "🇮🇳",  # Malayalam
@@ -248,26 +248,27 @@ def bytes_to_size(bytes: int):
 
 def config_check(b64config: str):
     try:
-        config = orjson.loads(base64.b64decode(b64config).decode())
+        config = json.loads(base64.b64decode(b64config).decode())
         validated_config = ConfigModel(**config)
         return validated_config.model_dump()
     except:
         return False
 
 
-def get_debrid_extension(debridService: str, debridApiKey: str = None):
-    if debridApiKey == "":
-        return "TORRENT"
+def get_debrid_extension(debridService: str):
+    debrid_extension = None
+    if debridService == "realdebrid":
+        debrid_extension = "RD"
+    elif debridService == "alldebrid":
+        debrid_extension = "AD"
+    elif debridService == "premiumize":
+        debrid_extension = "PM"
+    elif debridService == "torbox":
+        debrid_extension = "TB"
+    elif debridService == "debridlink":
+        debrid_extension = "DL"
 
-    debrid_extensions = {
-        "realdebrid": "RD",
-        "alldebrid": "AD",
-        "premiumize": "PM",
-        "torbox": "TB",
-        "debridlink": "DL",
-    }
-
-    return debrid_extensions.get(debridService, None)
+    return debrid_extension
 
 
 async def get_indexer_manager(
@@ -423,49 +424,6 @@ async def get_torrentio(log_name: str, type: str, full_id: str):
     return results
 
 
-async def get_mediafusion(log_name: str, type: str, full_id: str):
-    results = []
-    try:
-        try:
-            get_mediafusion = requests.get(
-                f"{settings.MEDIAFUSION_URL}/stream/{type}/{full_id}.json"
-            ).json()
-        except:
-            get_mediafusion = requests.get(
-                f"{settings.MEDIAFUSION_URL}/stream/{type}/{full_id}.json",
-                proxies={
-                    "http": settings.DEBRID_PROXY_URL,
-                    "https": settings.DEBRID_PROXY_URL,
-                },
-            ).json()
-
-        for torrent in get_mediafusion["streams"]:
-            title_full = torrent["description"]
-            title = title_full.split("\n")[0] if "\n" in title_full else title_full
-            tracker = title_full.split("🔗 ")[1] if "🔗" in title_full else "Unknown"
-
-            results.append(
-                {
-                    "Title": title,
-                    "InfoHash": torrent["infoHash"],
-                    "Size": torrent["behaviorHints"][
-                        "videoSize"
-                    ],  # not the pack size but still useful for prowlarr userss
-                    "Tracker": f"MediaFusion|{tracker}",
-                }
-            )
-
-        logger.info(f"{len(results)} torrents found for {log_name} with MediaFusion")
-
-    except Exception as e:
-        logger.warning(
-            f"Exception while getting torrents for {log_name} with MediaFusion, your IP is most likely blacklisted (you should try proxying Comet): {e}"
-        )
-        pass
-
-    return results
-
-
 async def filter(torrents: list, name: str, year: int):
     results = []
     for torrent in torrents:
@@ -614,39 +572,7 @@ def format_metadata(data: dict):
     return "|".join(extras)
 
 
-def format_title(data: dict, config: dict):
-    title = ""
-    if "All" in config["resultFormat"] or "Title" in config["resultFormat"]:
-        title += f"{data['title']}\n"
 
-    if "All" in config["resultFormat"] or "Metadata" in config["resultFormat"]:
-        metadata = format_metadata(data)
-        if metadata != "":
-            title += f"💿 {metadata}\n"
-
-    if "All" in config["resultFormat"] or "Size" in config["resultFormat"]:
-        title += f"💾 {bytes_to_size(data['size'])} "
-
-    if "All" in config["resultFormat"] or "Tracker" in config["resultFormat"]:
-        title += f"🔎 {data['tracker'] if 'tracker' in data else '?'}"
-
-    if "All" in config["resultFormat"] or "Languages" in config["resultFormat"]:
-        languages = data["languages"]
-        if data["dubbed"]:
-            languages.insert(0, "multi")
-        formatted_languages = (
-            "/".join(get_language_emoji(language) for language in languages)
-            if languages
-            else None
-        )
-        languages_str = "\n" + formatted_languages if formatted_languages else ""
-        title += f"{languages_str}"
-
-    if title == "":
-        # Without this, Streamio shows SD as the result, which is confusing
-        title = "Empty result format configuration"
-
-    return title
 
 
 def get_client_ip(request: Request):
